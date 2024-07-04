@@ -170,7 +170,7 @@ def main() -> None:
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 print(minesweeper)
             with term.location(input_handler.current_position.x, input_handler.current_position.y):
-                print('X')
+                print(term.black_on_darkkhaki('X'))
             action = input_handler.get_input()
 
             if action:
