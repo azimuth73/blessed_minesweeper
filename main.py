@@ -57,7 +57,7 @@ class Cell:
                 self.clicked_auto_reveal = True
                 for neighbour in self.neighbours():
                     if not neighbour.is_flagged and neighbour not in visited:
-                        neighbour.reveal()
+                        neighbour.reveal(visited)
             return
 
         self.is_revealed = True
@@ -207,8 +207,8 @@ class InputHandler:
 def main() -> None:
     print(term.clear)
 
-    size = Size(width=40, height=20)
-    num_mines = 400
+    size = Size(width=90, height=21)
+    num_mines = 250
     minefield = Minefield(Position(0, 0), size, num_mines)
 
     minesweeper = Minesweeper(minefield)
@@ -269,7 +269,7 @@ def main() -> None:
                 minesweeper.minefield.reveal_all()
                 print(minesweeper)
             with term.location(
-                    minesweeper.minefield.top_left.x + minesweeper.minefield.size.width,
+                    0,
                     minesweeper.minefield.top_left.y + minesweeper.minefield.size.height
             ):
                 print(term.red + "Game Over! You revealed a mine.")
@@ -278,7 +278,7 @@ def main() -> None:
                 minesweeper.minefield.reveal_all()
                 print(minesweeper)
             with term.location(
-                    minesweeper.minefield.top_left.x + minesweeper.minefield.size.width,
+                    0,
                     minesweeper.minefield.top_left.y + minesweeper.minefield.size.height
             ):
                 print(term.green + "Congratulations! You cleared the minefield.")
