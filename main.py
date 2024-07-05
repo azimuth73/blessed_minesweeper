@@ -124,24 +124,6 @@ class Minesweeper:
         self.game_over = False
         self.victory = False
 
-    def reveal_cell(self, position: Position) -> None:
-        if not self.game_over and not self.victory:
-            self.minefield.reveal(position)
-            if self.minefield.cells[position.x, position.y].is_mine:
-                self.game_over = True
-            elif self.minefield.all_cells_revealed_except_mines():
-                self.victory = True
-
-    def flag_cell(self, position: Position) -> None:
-        if not self.game_over and not self.victory:
-            self.minefield.flag(position)
-
-    def is_game_over(self) -> bool:
-        return self.game_over
-
-    def is_victory(self) -> bool:
-        return self.victory
-
     def __str__(self) -> str:
         return str(self.minefield)
 
@@ -159,8 +141,8 @@ class InputHandler:
             'MOVE_BOTTOM_LEFT': ['1'],
             'MOVE_TOP_RIGHT': ['9'],
             'MOVE_BOTTOM_RIGHT': ['3'],
-            'FLAG': ['F'],
-            'REVEAL': [' '],
+            'FLAG': ['F', '5'],
+            'REVEAL': ['R', '0'],
         }
 
     def get_input(self) -> Optional[str]:
@@ -185,7 +167,7 @@ def main() -> None:
     input_handler = InputHandler(term)
 
     with term.cbreak(), term.hidden_cursor():
-        while not minesweeper.is_game_over() and not minesweeper.is_victory():
+        while not minesweeper.game_over and not minesweeper.victory:
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 print(minesweeper)
             with term.location(minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y):
@@ -202,11 +184,18 @@ def main() -> None:
                 case 'MOVE_BOTTOM_LEFT': minesweeper.minefield.move_cursor(dx=-1, dy=+1)
                 case 'MOVE_TOP_RIGHT': minesweeper.minefield.move_cursor(dx=+1, dy=-1)
                 case 'MOVE_BOTTOM_RIGHT': minesweeper.minefield.move_cursor(dx=+1, dy=+1)
-                case 'FLAG': minesweeper.flag_cell(minesweeper.minefield.cursor_position)
-                case 'REVEAL': minesweeper.reveal_cell(minesweeper.minefield.cursor_position)
+                case 'FLAG': minesweeper.minefield.flag(minesweeper.minefield.cursor_position)
+                case 'REVEAL':
+                    minesweeper.minefield.reveal(minesweeper.minefield.cursor_position)
+                    if minesweeper.minefield.cells[
+                        minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y
+                    ].is_mine:
+                        minesweeper.game_over = True
+                    elif minesweeper.minefield.all_cells_revealed_except_mines():
+                        minesweeper.victory = True
                 case _: pass
 
-        if minesweeper.is_game_over():
+        if minesweeper.game_over:
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 minesweeper.minefield.reveal_all()
                 print(minesweeper)
@@ -215,7 +204,10 @@ def main() -> None:
                     minesweeper.minefield.top_left.y + minesweeper.minefield.size.height
             ):
                 print(term.red + "Game Over! You revealed a mine.")
-        elif minesweeper.is_victory():
+        elif minesweeper.victory:
+            with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
+                minesweeper.minefield.reveal_all()
+                print(minesweeper)
             with term.location(
                     minesweeper.minefield.top_left.x + minesweeper.minefield.size.width,
                     minesweeper.minefield.top_left.y + minesweeper.minefield.size.height
