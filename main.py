@@ -10,10 +10,9 @@ Size = namedtuple(typename='Size', field_names=['width', 'height'])
 
 SYMBOLS = {
     'UNREVEALED': '?',
-    'EMPTY': '.',
+    'EMPTY': ' ',
     'MINE': '*',
-    'FLAGGED': 'F',
-    'CURSOR': 'X'
+    'FLAGGED': 'X',
 }
 
 
@@ -26,21 +25,36 @@ class Cell:
         self.is_revealed = False
         self.symbol = SYMBOLS['UNREVEALED']
 
+    def neighbours(self) -> List[Cell]:
+        neighbours = []
+        directions = [(-1, -1), (-1, +0), (-1, +1), (+0, -1), (+0, +1), (+1, -1), (+1, +0), (+1, +1)]
+        for dx, dy in directions:
+            nx, ny = self.position.x + dx, self.position.y + dy
+            if 0 <= nx < self.minefield.size.width and 0 <= ny < self.minefield.size.height:
+                neighbours.append(self.minefield.cells[nx, ny])
+        return neighbours
+
     def reveal(self) -> None:
-        if self.is_revealed:
+        if self.is_revealed or self.is_flagged:
             return
         self.is_revealed = True
         if self.is_mine:
             self.symbol = SYMBOLS['MINE']
         else:
-            self.symbol = SYMBOLS['EMPTY']
+            mine_count = sum(neighbour.is_mine for neighbour in self.neighbours())
+            self.symbol = str(mine_count) if mine_count > 0 else SYMBOLS['EMPTY']
+            if mine_count == 0:
+                for neighbour in self.neighbours():
+                    neighbour.reveal()
 
     def flag(self) -> None:
         if not self.is_revealed:
-            if self.symbol == SYMBOLS['UNREVEALED']:
-                self.symbol = SYMBOLS['FLAGGED']
-            elif self.symbol == SYMBOLS['FLAGGED']:
+            if self.is_flagged:
+                self.is_flagged = False
                 self.symbol = SYMBOLS['UNREVEALED']
+            else:
+                self.is_flagged = True
+                self.symbol = SYMBOLS['FLAGGED']
 
     def __str__(self) -> str:
         return self.symbol
@@ -141,8 +155,8 @@ class InputHandler:
             'MOVE_BOTTOM_LEFT': ['1'],
             'MOVE_TOP_RIGHT': ['9'],
             'MOVE_BOTTOM_RIGHT': ['3'],
-            'FLAG': ['F', '5'],
-            'REVEAL': ['R', '0'],
+            'FLAG': ['F', '0'],
+            'REVEAL': ['R', '5'],
         }
 
     def get_input(self) -> Optional[str]:
@@ -171,7 +185,9 @@ def main() -> None:
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 print(minesweeper)
             with term.location(minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y):
-                print(term.black_on_darkkhaki(SYMBOLS['CURSOR']))
+                print(term.black_on_darkkhaki(str(minesweeper.minefield.cells[
+                    minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y
+                ])))
 
             action: Optional[str] = input_handler.get_input()
 
