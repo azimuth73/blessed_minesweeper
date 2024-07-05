@@ -5,6 +5,8 @@ from blessed import Terminal, keyboard
 from collections import namedtuple
 from typing import Optional, List
 
+term = Terminal()
+
 Position = namedtuple(typename='Position', field_names=['x', 'y'])
 Size = namedtuple(typename='Size', field_names=['width', 'height'])
 
@@ -79,7 +81,20 @@ class Cell:
                 self.symbol = SYMBOLS['FLAGGED']
 
     def __str__(self) -> str:
-        return self.symbol
+        if self.symbol.isdigit():  # If the symbol is a number
+            colors = {
+                '1': term.steelblue,
+                '2': term.green,
+                '3': term.red,
+                '4': term.yellow,
+                '5': term.aqua,
+                '6': term.springgreen,
+                '7': term.mediumorchid,
+                '8': term.orangered
+            }
+            return colors.get(self.symbol, '') + self.symbol + term.normal
+        else:
+            return self.symbol
 
 
 class Minefield:
@@ -165,14 +180,12 @@ class Minesweeper:
 
 
 class InputHandler:
-    def __init__(self, term) -> None:
-        self.term = term
-
+    def __init__(self) -> None:
         self.action_to_keystrokes = {
-            'MOVE_UP': ['W', self.term.KEY_UP, '8'],
-            'MOVE_DOWN': ['S', self.term.KEY_DOWN, '2'],
-            'MOVE_LEFT': ['A', self.term.KEY_LEFT, '4'],
-            'MOVE_RIGHT': ['D', self.term.KEY_RIGHT, '6'],
+            'MOVE_UP': ['W', term.KEY_UP, '8'],
+            'MOVE_DOWN': ['S', term.KEY_DOWN, '2'],
+            'MOVE_LEFT': ['A', term.KEY_LEFT, '4'],
+            'MOVE_RIGHT': ['D', term.KEY_RIGHT, '6'],
             'MOVE_TOP_LEFT': ['7'],
             'MOVE_BOTTOM_LEFT': ['1'],
             'MOVE_TOP_RIGHT': ['9'],
@@ -182,7 +195,7 @@ class InputHandler:
         }
 
     def get_input(self) -> Optional[str]:
-        keystroke: keyboard.Keystroke = self.term.inkey(timeout=1)
+        keystroke: keyboard.Keystroke = term.inkey(timeout=1)
 
         for action, keystrokes in self.action_to_keystrokes.items():
             if keystroke.upper() in keystrokes or keystroke.code in keystrokes:
@@ -192,11 +205,10 @@ class InputHandler:
 
 
 def main() -> None:
-    term = Terminal()
     print(term.clear)
 
     size = Size(width=40, height=20)
-    num_mines = 100
+    num_mines = 400
     minefield = Minefield(Position(0, 0), size, num_mines)
 
     minesweeper = Minesweeper(minefield)
@@ -218,14 +230,14 @@ def main() -> None:
     else:
         minesweeper.minefield.cursor_position = Position(x=minefield.size.width // 2, y=minefield.size.height // 2)
     #########
-    input_handler = InputHandler(term)
+    input_handler = InputHandler()
 
     with term.cbreak(), term.hidden_cursor():
         while not minesweeper.game_over and not minesweeper.victory:
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 print(minesweeper)
             with term.location(minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y):
-                print(term.black_on_darkkhaki(str(minesweeper.minefield.cells[
+                print(term.on_gray(str(minesweeper.minefield.cells[
                     minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y
                 ])))
 
