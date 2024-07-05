@@ -9,7 +9,7 @@ Position = namedtuple(typename='Position', field_names=['x', 'y'])
 Size = namedtuple(typename='Size', field_names=['width', 'height'])
 
 SYMBOLS = {
-    'UNREVEALED': '?',
+    'UNREVEALED': '%',
     'EMPTY': ' ',
     'MINE': '*',
     'FLAGGED': 'X',
@@ -41,20 +41,21 @@ class Cell:
         if visited is None:
             visited = set()
 
-        if self.is_flagged or self in visited:
+        if self.is_flagged:
             return
 
         visited.add(self)
 
-        if self.is_revealed and self.symbol in ['1', '2', '3', '4', '5', '6', '7', '8']:
+        if self.is_revealed:
 
             # Check if the number of flagged neighbors matches the cell's number
+            mine_count = sum(neighbour.is_mine for neighbour in self.neighbours())
             flagged_count = sum(neighbour.is_flagged for neighbour in self.neighbours())
-            if int(self.symbol) == flagged_count and not self.clicked_auto_reveal:
+            if mine_count == flagged_count and not self.clicked_auto_reveal:
                 self.clicked_auto_reveal = True
                 for neighbour in self.neighbours():
                     if not neighbour.is_flagged and neighbour not in visited:
-                        neighbour.reveal(visited)
+                        neighbour.reveal()
             return
 
         self.is_revealed = True
@@ -66,7 +67,7 @@ class Cell:
             if mine_count == 0:
                 for neighbour in self.neighbours():
                     if neighbour not in visited:
-                        neighbour.reveal(visited)
+                        neighbour.reveal()
 
     def flag(self) -> None:
         if not self.is_revealed:
@@ -199,6 +200,24 @@ def main() -> None:
     minefield = Minefield(Position(0, 0), size, num_mines)
 
     minesweeper = Minesweeper(minefield)
+    ##########
+    # Find all empty cells in the minefield
+    empty_cells = []
+    for x in range(minefield.size.width):
+        for y in range(minefield.size.height):
+            cell = minefield.cells[x, y]
+            if not cell.is_revealed and not cell.is_mine:
+                mine_count = sum(neighbour.is_mine for neighbour in cell.neighbours())
+                if mine_count == 0:
+                    empty_cells.append(cell)
+    # Choose a random empty cell and reveal it
+    if empty_cells:
+        chosen_cell = random.choice(empty_cells)
+        chosen_cell.reveal()
+        minesweeper.minefield.cursor_position = chosen_cell.position
+    else:
+        minesweeper.minefield.cursor_position = Position(x=minefield.size.width // 2, y=minefield.size.height // 2)
+    #########
     input_handler = InputHandler(term)
 
     with term.cbreak(), term.hidden_cursor():
