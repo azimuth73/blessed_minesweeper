@@ -23,6 +23,7 @@ class Cell:
         self.is_mine = plant_mine
         self.is_flagged = False
         self.is_revealed = False
+        self.clicked_auto_reveal = False
         self.symbol = SYMBOLS['UNREVEALED']
 
     def neighbours(self) -> List[Cell]:
@@ -34,9 +35,28 @@ class Cell:
                 neighbours.append(self.minefield.cells[nx, ny])
         return neighbours
 
-    def reveal(self) -> None:
-        if self.is_revealed or self.is_flagged:
+    def reveal(self, visited=None) -> None:
+        # There is still some weird behaviour i cannot explain where its unpredictable where neigbours neighbours
+        # will auto discover nearby
+        if visited is None:
+            visited = set()
+
+        if self.is_flagged or self in visited:
             return
+
+        visited.add(self)
+
+        if self.is_revealed and self.symbol in ['1', '2', '3', '4', '5', '6', '7', '8']:
+
+            # Check if the number of flagged neighbors matches the cell's number
+            flagged_count = sum(neighbour.is_flagged for neighbour in self.neighbours())
+            if int(self.symbol) == flagged_count and not self.clicked_auto_reveal:
+                self.clicked_auto_reveal = True
+                for neighbour in self.neighbours():
+                    if not neighbour.is_flagged and neighbour not in visited:
+                        neighbour.reveal(visited)
+            return
+
         self.is_revealed = True
         if self.is_mine:
             self.symbol = SYMBOLS['MINE']
@@ -45,7 +65,8 @@ class Cell:
             self.symbol = str(mine_count) if mine_count > 0 else SYMBOLS['EMPTY']
             if mine_count == 0:
                 for neighbour in self.neighbours():
-                    neighbour.reveal()
+                    if neighbour not in visited:
+                        neighbour.reveal(visited)
 
     def flag(self) -> None:
         if not self.is_revealed:
@@ -160,7 +181,7 @@ class InputHandler:
         }
 
     def get_input(self) -> Optional[str]:
-        keystroke: keyboard.Keystroke = self.term.inkey(timeout=None)
+        keystroke: keyboard.Keystroke = self.term.inkey(timeout=1)
 
         for action, keystrokes in self.action_to_keystrokes.items():
             if keystroke.upper() in keystrokes or keystroke.code in keystrokes:
@@ -173,8 +194,8 @@ def main() -> None:
     term = Terminal()
     print(term.clear)
 
-    size = Size(width=10, height=10)
-    num_mines = 15
+    size = Size(width=40, height=20)
+    num_mines = 100
     minefield = Minefield(Position(0, 0), size, num_mines)
 
     minesweeper = Minesweeper(minefield)
@@ -203,9 +224,10 @@ def main() -> None:
                 case 'FLAG': minesweeper.minefield.flag(minesweeper.minefield.cursor_position)
                 case 'REVEAL':
                     minesweeper.minefield.reveal(minesweeper.minefield.cursor_position)
-                    if minesweeper.minefield.cells[
+                    target_cell = minesweeper.minefield.cells[
                         minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y
-                    ].is_mine:
+                    ]
+                    if target_cell.is_mine and target_cell.is_revealed:  # TODO: Need to check neighbour mines
                         minesweeper.game_over = True
                     elif minesweeper.minefield.all_cells_revealed_except_mines():
                         minesweeper.victory = True
