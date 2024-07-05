@@ -1,12 +1,20 @@
 from __future__ import annotations
 import random
 import numpy as np
-from blessed import Terminal
+from blessed import Terminal, keyboard
 from collections import namedtuple
 from typing import Optional, List
 
 Position = namedtuple(typename='Position', field_names=['x', 'y'])
 Size = namedtuple(typename='Size', field_names=['width', 'height'])
+
+SYMBOLS = {
+    'UNREVEALED': '?',
+    'EMPTY': '.',
+    'MINE': '*',
+    'FLAGGED': 'F',
+    'CURSOR': 'X'
+}
 
 
 class Cell:
@@ -14,25 +22,25 @@ class Cell:
         self.minefield = minefield
         self.position = position
         self.is_mine = plant_mine
-        self.symbol = '#'
         self.is_flagged = False
         self.is_revealed = False
+        self.symbol = SYMBOLS['UNREVEALED']
 
     def reveal(self) -> None:
         if self.is_revealed:
             return
         self.is_revealed = True
         if self.is_mine:
-            self.symbol = '*'
+            self.symbol = SYMBOLS['MINE']
         else:
-            self.symbol = '.'
+            self.symbol = SYMBOLS['EMPTY']
 
     def flag(self) -> None:
         if not self.is_revealed:
-            if self.symbol == '#':
-                self.symbol = 'F'
-            elif self.symbol == 'F':
-                self.symbol = '#'
+            if self.symbol == SYMBOLS['UNREVEALED']:
+                self.symbol = SYMBOLS['FLAGGED']
+            elif self.symbol == SYMBOLS['FLAGGED']:
+                self.symbol = SYMBOLS['UNREVEALED']
 
     def __str__(self) -> str:
         return self.symbol
@@ -44,8 +52,9 @@ class Minefield:
         self.size = size
         self.num_mines = num_mines
         self.cells = np.empty(shape=(self.size.width, self.size.height), dtype=object)
+        self.cursor_position = self.top_left
 
-        mine_positions = self._place_mines()
+        mine_positions = self.__place_mines()
 
         for x in range(self.size.width):
             for y in range(self.size.height):
@@ -53,12 +62,30 @@ class Minefield:
                 plant_mine = cell_position in mine_positions
                 self.cells[x, y] = Cell(self, cell_position, plant_mine)
 
-    def _place_mines(self) -> List[Position]:
+    def move_cursor(self, dx: int = 0, dy: int = 0) -> None:
+
+        new_x, new_y = self.cursor_position.x + dx, self.cursor_position.y + dy
+        min_x, min_y, max_x, max_y = 0, 0, self.size.width - 1, self.size.height - 1
+
+        if new_x > max_x:
+            new_x = max_x
+        elif new_x < min_x:
+            new_x = min_x
+        if new_y > max_y:
+            new_y = max_y
+        elif new_y < min_y:
+            new_y = min_y
+
+        self.cursor_position = Position(
+            new_x, new_y
+        )
+
+    def __place_mines(self) -> List[Position]:
         mine_positions = []
         while len(mine_positions) < self.num_mines:
             new_mine_position = Position(
-                x=random.randint(0, self.size.width - 1),
-                y=random.randint(0, self.size.height - 1)
+                x=random.randint(a=0, b=self.size.width - 1),
+                y=random.randint(a=0, b=self.size.height - 1)
             )
             if new_mine_position not in mine_positions:
                 mine_positions.append(new_mine_position)
@@ -86,7 +113,9 @@ class Minefield:
         return True
 
     def __str__(self) -> str:
-        return '\n'.join(''.join(str(self.cells[x, y]) for x in range(self.size.width)) for y in range(self.size.height))
+        return '\n'.join(
+            ''.join(str(self.cells[x, y]) for x in range(self.size.width)) for y in range(self.size.height)
+        )
 
 
 class Minesweeper:
@@ -117,39 +146,29 @@ class Minesweeper:
         return str(self.minefield)
 
 
-class Action:
-    def __init__(self, name: str, target: Position) -> None:
-        self.name = name
-        self.target = target
-
-
 class InputHandler:
-    def __init__(self, term, minefield) -> None:
+    def __init__(self, term) -> None:
         self.term = term
-        self.current_position = minefield.top_left
-        self.minefield = minefield
 
-        self.movement_keys = [
-            self.term.KEY_UP, self.term.KEY_DOWN, self.term.KEY_LEFT, self.term.KEY_RIGHT
-        ]
+        self.action_to_keystrokes = {
+            'MOVE_UP': ['W', self.term.KEY_UP, '8'],
+            'MOVE_DOWN': ['S', self.term.KEY_DOWN, '2'],
+            'MOVE_LEFT': ['A', self.term.KEY_LEFT, '4'],
+            'MOVE_RIGHT': ['D', self.term.KEY_RIGHT, '6'],
+            'MOVE_TOP_LEFT': ['7'],
+            'MOVE_BOTTOM_LEFT': ['1'],
+            'MOVE_TOP_RIGHT': ['9'],
+            'MOVE_BOTTOM_RIGHT': ['3'],
+            'FLAG': ['F'],
+            'REVEAL': [' '],
+        }
 
-    def get_input(self) -> Optional[Action]:
-        key = self.term.inkey(timeout=None)
+    def get_input(self) -> Optional[str]:
+        keystroke: keyboard.Keystroke = self.term.inkey(timeout=None)
 
-        if key.code == self.term.KEY_ENTER:
-            return Action(name='reveal', target=self.current_position)
-        elif key.lower() == 'f':
-            return Action(name='flag', target=self.current_position)
-        elif key.code in self.movement_keys:
-            if key.code == self.term.KEY_UP:
-                self.current_position = Position(self.current_position.x, max(0, self.current_position.y - 1))
-            elif key.code == self.term.KEY_DOWN:
-                self.current_position = Position(self.current_position.x, min(self.minefield.size.height - 1, self.current_position.y + 1))
-            elif key.code == self.term.KEY_LEFT:
-                self.current_position = Position(max(0, self.current_position.x - 1), self.current_position.y)
-            elif key.code == self.term.KEY_RIGHT:
-                self.current_position = Position(min(self.minefield.size.width - 1, self.current_position.x + 1), self.current_position.y)
-            return Action(name='move', target=self.current_position)
+        for action, keystrokes in self.action_to_keystrokes.items():
+            if keystroke.upper() in keystrokes or keystroke.code in keystrokes:
+                return action
 
         return None
 
@@ -160,27 +179,32 @@ def main() -> None:
 
     size = Size(width=10, height=10)
     num_mines = 15
-
     minefield = Minefield(Position(0, 0), size, num_mines)
+
     minesweeper = Minesweeper(minefield)
-    input_handler = InputHandler(term, minefield)
+    input_handler = InputHandler(term)
 
     with term.cbreak(), term.hidden_cursor():
         while not minesweeper.is_game_over() and not minesweeper.is_victory():
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
                 print(minesweeper)
-            with term.location(input_handler.current_position.x, input_handler.current_position.y):
-                print(term.black_on_darkkhaki('X'))
-            action = input_handler.get_input()
+            with term.location(minesweeper.minefield.cursor_position.x, minesweeper.minefield.cursor_position.y):
+                print(term.black_on_darkkhaki(SYMBOLS['CURSOR']))
 
-            if action:
-                if action.name == 'reveal':
-                    minesweeper.reveal_cell(action.target)
-                elif action.name == 'flag':
-                    minesweeper.flag_cell(action.target)
-                elif action.name == 'move':
-                    # Optionally handle cursor movement feedback in the UI
-                    pass
+            action: Optional[str] = input_handler.get_input()
+
+            match action:
+                case 'MOVE_UP': minesweeper.minefield.move_cursor(dy=-1)
+                case 'MOVE_DOWN': minesweeper.minefield.move_cursor(dy=+1)
+                case 'MOVE_LEFT': minesweeper.minefield.move_cursor(dx=-1)
+                case 'MOVE_RIGHT': minesweeper.minefield.move_cursor(dx=+1)
+                case 'MOVE_TOP_LEFT': minesweeper.minefield.move_cursor(dx=-1, dy=-1)
+                case 'MOVE_BOTTOM_LEFT': minesweeper.minefield.move_cursor(dx=-1, dy=+1)
+                case 'MOVE_TOP_RIGHT': minesweeper.minefield.move_cursor(dx=+1, dy=-1)
+                case 'MOVE_BOTTOM_RIGHT': minesweeper.minefield.move_cursor(dx=+1, dy=+1)
+                case 'FLAG': minesweeper.flag_cell(minesweeper.minefield.cursor_position)
+                case 'REVEAL': minesweeper.reveal_cell(minesweeper.minefield.cursor_position)
+                case _: pass
 
         if minesweeper.is_game_over():
             with term.location(minesweeper.minefield.top_left.x, minesweeper.minefield.top_left.y):
@@ -199,7 +223,7 @@ def main() -> None:
                 print(term.green + "Congratulations! You cleared the minefield.")
 
     with term.cbreak(), term.hidden_cursor():
-        inp = term.inkey()
+        _ = term.inkey()
 
     print(term.home + term.clear)
 
